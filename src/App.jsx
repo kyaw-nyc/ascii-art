@@ -38,6 +38,16 @@ export default function App() {
     color: "#ffffff",
   };
 
+  const PLACEHOLDER_PRE_STYLE = {
+    ...PRE_STYLE,
+    fontSize: 14,
+    lineHeight: "120%",
+    backgroundColor: "transparent",
+    borderStyle: "dashed",
+    borderColor: "rgba(255,255,255,.15)",
+    color: "var(--muted)",
+  };
+
   function onPickFile(e) {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -138,7 +148,7 @@ ${asciiHtml}
         <h1>
           <span className="logo">▞▚</span> Image → ASCII
         </h1>
-        <p className="subtitle">Client‑side, zero‑upload • Java‑accurate mapping • Export HTML</p>
+        
         <div className="toolbar">
           <label className="btn primary" title="Upload image">
             <input
@@ -173,15 +183,13 @@ ${asciiHtml}
         </section>
 
         <section className="panel ascii">
-          <pre style={PRE_STYLE} dangerouslySetInnerHTML={{ __html: asciiHtml || placeholderAscii }} />
+          <pre style={asciiHtml ? PRE_STYLE : PLACEHOLDER_PRE_STYLE} dangerouslySetInnerHTML={{ __html: asciiHtml || escapeHtml(placeholderAscii) }} />
         </section>
       </main>
 
       <canvas ref={canvasRef} style={{ display: "none" }} />
 
-      <footer className="footer">
-        <span>Made with React & Canvas • No cloud required</span>
-      </footer>
+      
     </div>
   );
 }
@@ -210,7 +218,10 @@ function escapeHtml(str) {
 
 const appShell = {
   minHeight: "100vh",
-  background: "radial-gradient(1200px 600px at 10% -10%, rgba(43,92,255,.25), rgba(0,0,0,0)) , radial-gradient(900px 500px at 90% 10%, rgba(255,76,140,.25), rgba(0,0,0,0)) , linear-gradient(120deg, #0b0f1a 0%, #070a12 100%)",
+  width: "100%",
+  maxWidth: "100%",
+  background:
+    "radial-gradient(1200px 600px at 10% -10%, rgba(43,92,255,.25), rgba(0,0,0,0)) , radial-gradient(900px 500px at 90% 10%, rgba(255,76,140,.25), rgba(0,0,0,0)) , linear-gradient(120deg, #0b0f1a 0%, #070a12 100%)",
   color: "#e9ecf3",
   padding: 24,
   display: "flex",
@@ -218,6 +229,8 @@ const appShell = {
 };
 
 const globalCss = `
+  html, body, #root { height: 100%; width: 100%; }
+  body { margin: 0; background: #070a12; overflow-x: hidden; }
   :root {
     --card: rgba(255,255,255,0.06);
     --card-border: rgba(255,255,255,0.12);
@@ -232,7 +245,7 @@ const globalCss = `
   .logo { display:inline-block; margin-right:.3em; background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip:text; color:transparent; }
   .subtitle { margin: 8px 0 14px; color: var(--muted); }
 
-  .toolbar { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; align-items:center; }
+  .toolbar { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; align-items:center; margin-top:12px; }
   .btn { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--card-border); background: var(--card); color: #fff; font-weight: 700; letter-spacing: .2px; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, background .2s; text-decoration:none; }
   .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,.25); }
   .btn:disabled { opacity: .6; cursor: not-allowed; }
@@ -240,7 +253,7 @@ const globalCss = `
   .btn.ghost { background: transparent; border: 1px dashed var(--card-border); }
   .badge { background: rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); padding: 6px 10px; border-radius: 999px; font-size: 12px; }
 
-  .content { margin: 18px auto 0; display: grid; grid-template-columns: minmax(260px, 420px) minmax(320px, 1fr); gap: 18px; width: min(1200px, 96vw); }
+  .content { margin: 18px auto 0; display: grid; grid-template-columns: minmax(260px, 420px) minmax(320px, 1fr); gap: 18px; width: min(1280px, 92vw); }
   @media (max-width: 900px) { .content { grid-template-columns: 1fr; } }
 
   .dropzone { position: relative; min-height: 280px; border-radius: 16px; border: 1px dashed var(--card-border); background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); display:flex; align-items:center; justify-content:center; overflow:hidden; }
@@ -251,12 +264,8 @@ const globalCss = `
 
   .panel.ascii { background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 12px; overflow:auto; max-height: 70vh; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
 
-  .footer { margin: 18px auto 0; width: min(1200px, 96vw); display:flex; justify-content:center; color: var(--muted); font-size: 12px; }
+  .footer { margin: 18px auto 0; width: min(1280px, 92vw); display:flex; justify-content:center; color: var(--muted); font-size: 12px; }
 `;
 
-const placeholderAscii = `
-
-  Upload an image to render ASCII here.
-  Using charset: &@#*+=-:.,  (dark → light)
-
-`;
+const placeholderAscii = `Drop an image or click Upload to render ASCII here.
+Charset: &@#*+=-:.,  (dark → light)`;
