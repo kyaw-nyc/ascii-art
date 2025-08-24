@@ -1,27 +1,31 @@
 import React, { useRef, useState } from "react";
 
 // App.jsx — Vite React (pure web)
-// ✨ Pretty UI polish while preserving your exact Java logic
-// - Charset: "&@#*+=-:., " (dark → light)
-// - Luminance: idx = floor(lum/256 * (len-1)), lum = 0.2126R + 0.7152G + 0.0722B
-// - Grayscale color: #GGGGGG from 0.299R + 0.587G + 0.114B
-// - Step: 20 px (both axes)
-// - <pre> line-height: 60% to avoid vertical gaps
+// ✨ Pretty UI polish while preserving pipeline logic
+// Python-style flow:
+// 1) widen 5% (like get_image)
+// 2) pixelate to FINAL_WIDTH (keep aspect)
+// 3) grayscale → ASCII index: int(gray * len(chars) / 256)
+// 4) color from pixelated color image
+// 5) render in <pre> with line-height: 60%
 
 export default function App() {
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
 
+  // STATE (fixed broken line + restored missing states)
   const [asciiHtml, setAsciiHtml] = useState("");
+  const [busy, setBusy] = useState(false);
   const [imgName, setImgName] = useState("");
   const [imgUrl, setImgUrl] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  // Optional: point this at your repo for PNG instructions
-  const GITHUB_REPO_URL = "https://github.com/yourname/your-wkhtmltoimage-repo"; // ← change me
+  // UI zoom for ASCII preview (0.10x – 1.00x)
+  const [zoom, setZoom] = useState(0.25);
 
-  const ASCII = "&@#*+=-:., ";
-  const STEP = 20; // pixels
+  const ASCII_LIST = [" ", ".", ":", "-", "=", "+", "*", "#", "%", "@", "&"]; // python list
+  const FINAL_WIDTH = 200; // pixelate target width
+  const SCALE_X = 1.05; // widen 5%
+
   const PRE_STYLE = {
     display: "inline-block",
     borderWidth: "4px 6px",
@@ -66,41 +70,53 @@ export default function App() {
       setBusy(true);
       const img = await loadImage(url);
 
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
+      // Stage A: widen horizontally by 5%
+      const stageA = document.createElement("canvas");
+      const aCtx = stageA.getContext("2d");
+      stageA.width = Math.round(img.width * SCALE_X);
+      stageA.height = img.height;
+      aCtx.drawImage(img, 0, 0, stageA.width, stageA.height);
 
-      // Match original image size (no scaling to preserve logic)
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
+      // Stage B: pixelate to FINAL_WIDTH (preserve aspect)
+      const finalW = FINAL_WIDTH;
+      const finalH = Math.max(1, Math.round((stageA.height * finalW) / stageA.width));
+      const stageB = document.createElement("canvas");
+      const bCtx = stageB.getContext("2d");
+      stageB.width = finalW;
+      stageB.height = finalH;
+      bCtx.imageSmoothingEnabled = false; // crisp pixelation
+      bCtx.drawImage(stageA, 0, 0, finalW, finalH);
 
-      const { data, width: w, height: h } = ctx.getImageData(0, 0, img.width, img.height);
+      // Read pixelated color data
+      const { data } = bCtx.getImageData(0, 0, finalW, finalH);
 
-      const lastIndex = ASCII.length - 1;
+      // Build ASCII using grayscale mapping from the python code
+      const n = ASCII_LIST.length;
       let html = "";
-
-      for (let y = 0; y < h; y += STEP) {
-        for (let x = 0; x < w; x += STEP) {
-          const i = (y * w + x) * 4;
+      for (let y = 0; y < finalH; y++) {
+        for (let x = 0; x < finalW; x++) {
+          const i = (y * finalW + x) * 4;
           const r = data[i];
           const g = data[i + 1];
           const b = data[i + 2];
-
-          // Luminance for character selection (Rec.709)
-          const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b; // 0..255
-          const idx = Math.floor((lum / 256) * lastIndex);
-          const ch = ASCII.charAt(Math.max(0, Math.min(lastIndex, idx))) || " ";
-
-          // Grayscale for color
-          const gs = Math.max(0, Math.min(255, Math.round(0.299 * r + 0.587 * g + 0.114 * b)));
-          const hex = rgbToHex(gs, gs, gs);
-
-          html += `<span style="color:${hex}; font-weight: bold;">${escapeHtml(ch)}</span>`;
+          // grayscale like PIL ImageOps.grayscale
+          const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+          const ai = Math.floor((gray * n) / 256);
+          const ch = ASCII_LIST[ai] ?? " ";
+          const hex = rgbToHex(r, g, b); // color from color image
+          html += `<span style="color:${hex}; font-weight:bold;">${escapeHtml(ch)}</span>`;
         }
-        html += "<br>"; // row break
+        html += "<br>";
       }
 
       setAsciiHtml(html);
+
+      // store to hidden canvas if needed later
+      const canvas = canvasRef.current;
+      canvas.width = stageB.width;
+      canvas.height = stageB.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(stageB, 0, 0);
     } catch (e) {
       console.error(e);
       alert("Failed to process image. Try a smaller image.");
@@ -109,25 +125,67 @@ export default function App() {
     }
   }
 
+  function buildStandaloneHtml() {
+    return `<!doctype html>\n<html>\n<head>\n<meta charset="utf-8">\n<title>ASCII Html Output file</title>\n</head>\n<body style='background-color:black'>\n<pre style='display: inline-block; border-width: 4px 6px; border-color: black; border-style: solid; background-color:black; font-size: 32px; font-face: Montserrat; font-weight: bold; line-height:60%'>\n${asciiHtml}\n</pre>\n</body>\n</html>`;
+  }
+
   function handleExportHtml() {
-    const doc = `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>ASCII Html Output file</title>
-</head>
-<body style='background-color:black'>
-<pre style='display: inline-block; border-width: 4px 6px; border-color: black; border-style: solid; background-color:black; font-size: 32px; font-face: Montserrat; font-weight: bold; line-height:60%'>
-${asciiHtml}
-</pre>
-</body>
-</html>`;
+    const doc = buildStandaloneHtml();
     const blob = new Blob([doc], { type: "text/html" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = (imgName ? imgName.replace(/\.[^.]+$/, "") : "ascii-art") + ".html";
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  async function handleExportPng() {
+    if (!asciiHtml) return;
+    const doc = buildStandaloneHtml();
+    try {
+      const blob = await renderPngWithFallback(doc);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (imgName ? imgName.replace(/\.[^.]+$/, '') : 'ascii-art') + '.png';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (err) {
+      console.error(err);
+      const port = window.location.port || '(unknown)';
+      const msg = [
+        'PNG render failed.',
+        import.meta.env.DEV
+          ? `Open the Vercel dev server URL (e.g. http://localhost:3000) instead of Vite (current port: ${port}). Or keep this tab and start vercel dev.`
+          : 'Check your Vercel function logs for /api/html-to-image.'
+      ].join(' ');
+      alert(msg);
+    }
+  }
+
+  // Try same-origin first; in dev fallback to vercel dev ports
+  async function renderPngWithFallback(htmlDoc) {
+    const sameOrigin = `${location.origin}/api/html-to-image`;
+    const tries = [sameOrigin];
+    if (import.meta.env.DEV) {
+      if (!sameOrigin.includes('localhost:3000')) tries.push('http://localhost:3000/api/html-to-image');
+      if (!sameOrigin.includes('localhost:3001')) tries.push('http://localhost:3001/api/html-to-image');
+    }
+
+    let lastErr;
+    for (const url of tries) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ html: htmlDoc }),
+        });
+        if (res.ok) return await res.blob();
+        lastErr = new Error(`HTTP ${res.status} at ${url}: ${await res.text().catch(()=>'')}`);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error('All API endpoints failed');
   }
 
   // Drag & Drop handlers
@@ -163,9 +221,21 @@ ${asciiHtml}
           <button className="btn" onClick={handleExportHtml} disabled={!asciiHtml}>
             Download HTML
           </button>
-          <a className="btn ghost" href={GITHUB_REPO_URL} target="_blank" rel="noreferrer">
-            PNG via wkhtmltoimage ↗
-          </a>
+          <button className="btn" onClick={handleExportPng} disabled={!asciiHtml}>
+            Download PNG
+          </button>
+          <div className="zoomctl" title="Preview zoom (does not affect downloads)">
+            <span className="zoomlabel">Zoom</span>
+            <input
+              type="range"
+              min="0.1"
+              max="1"
+              step="0.05"
+              value={zoom}
+              onChange={(e)=>setZoom(parseFloat(e.target.value))}
+            />
+            <span className="zoomval">{Math.round(zoom*100)}%</span>
+          </div>
           {busy && <span className="badge">Processing…</span>}
         </div>
       </header>
@@ -183,13 +253,14 @@ ${asciiHtml}
         </section>
 
         <section className="panel ascii">
-          <pre style={asciiHtml ? PRE_STYLE : PLACEHOLDER_PRE_STYLE} dangerouslySetInnerHTML={{ __html: asciiHtml || escapeHtml(placeholderAscii) }} />
+          <pre
+            style={asciiHtml ? { ...PRE_STYLE, fontSize: Math.max(8, Math.round(PRE_STYLE.fontSize * zoom)) } : PLACEHOLDER_PRE_STYLE}
+            dangerouslySetInnerHTML={{ __html: asciiHtml || escapeHtml(placeholderAscii) }}
+          />
         </section>
       </main>
 
       <canvas ref={canvasRef} style={{ display: "none" }} />
-
-      
     </div>
   );
 }
@@ -213,6 +284,39 @@ function rgbToHex(r, g, b) {
 function escapeHtml(str) {
   return String(str).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
+
+// ---------- dev self-tests (run in dev only) ----------
+(function devSelfTest(){
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.MODE !== 'production') {
+      // Test grayscale → index bounds
+      const n = ASCII_LIST.length;
+      const idx0 = Math.floor((0 * n) / 256);
+      const idx255 = Math.floor((255 * n) / 256);
+      console.assert(idx0 === 0, 'Expected idx0===0, got', idx0);
+      console.assert(idx255 === n - 1, 'Expected idx255===n-1, got', idx255);
+
+      // Test a mid gray maps to a valid index
+      const mid = Math.floor((128 * n) / 256);
+      console.assert(mid >= 0 && mid < n, 'Mid index out of range', mid);
+
+      // Test last char for white maps to '&'
+      console.assert(ASCII_LIST[n - 1] === '&', "Expected last ASCII char to be '&'");
+
+      // Test final dims computation
+      const w = 1000, h = 500; // example
+      const aW = Math.round(w * SCALE_X);
+      const fW = FINAL_WIDTH;
+      const fH = Math.max(1, Math.round((h * fW) / aW));
+      console.assert(fH > 0, 'Final H should be > 0');
+      // eslint-disable-next-line no-console
+      console.log('[devSelfTest] ok');
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[devSelfTest] failed', e);
+  }
+})();
 
 // ---------- styles ----------
 
@@ -243,9 +347,12 @@ const globalCss = `
   .hero .glow { position:absolute; inset:-20px; background: radial-gradient(600px 180px at 50% 0%, rgba(124,156,255,0.25), transparent 60%); filter: blur(20px); pointer-events:none; }
   .hero h1 { font-size: clamp(28px, 3.5vw, 46px); margin: 0; font-weight: 900; letter-spacing: -0.02em; }
   .logo { display:inline-block; margin-right:.3em; background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip:text; color:transparent; }
-  .subtitle { margin: 8px 0 14px; color: var(--muted); }
 
   .toolbar { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; align-items:center; margin-top:12px; }
+  .zoomctl { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:10px; border:1px solid var(--card-border); background: var(--card); }
+  .zoomctl input[type=range]{ width:140px; accent-color: var(--accent); }
+  .zoomctl .zoomlabel{ color:#d8dbe4; font-size:12px; opacity:.9; }
+  .zoomctl .zoomval{ width:40px; text-align:right; font-variant-numeric: tabular-nums; color:#fff; font-size:12px; }
   .btn { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--card-border); background: var(--card); color: #fff; font-weight: 700; letter-spacing: .2px; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, background .2s; text-decoration:none; }
   .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,.25); }
   .btn:disabled { opacity: .6; cursor: not-allowed; }
@@ -263,9 +370,6 @@ const globalCss = `
   .hint-icon { font-size: 36px; opacity:.9; }
 
   .panel.ascii { background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 12px; overflow:auto; max-height: 70vh; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
-
-  .footer { margin: 18px auto 0; width: min(1280px, 92vw); display:flex; justify-content:center; color: var(--muted); font-size: 12px; }
 `;
 
-const placeholderAscii = `Drop an image or click Upload to render ASCII here.
-Charset: &@#*+=-:.,  (dark → light)`;
+const placeholderAscii = `Drop an image or click Upload to render ASCII here.\nCharset: &@#*+=-:.,  (dark → light)`;
