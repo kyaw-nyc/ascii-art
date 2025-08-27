@@ -10,7 +10,7 @@
     "serve": "node server/index.js"
   },
   "dependencies": {
-    "@sparticuz/chromium-min": "^138.0.2",
+    "@sparticuz/chromium": "^138.0.2",
     "express": "^4.19.2",
     "puppeteer-core": "^24.17.0",
     "react": "^19.1.1",

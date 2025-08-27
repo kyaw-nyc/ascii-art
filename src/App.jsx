@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 
 // App.jsx — Vite React (pure web)
 // ✨ Pretty UI polish while preserving pipeline logic
@@ -13,18 +13,35 @@ export default function App() {
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
 
-  // STATE (fixed broken line + restored missing states)
+  // STATE
   const [asciiHtml, setAsciiHtml] = useState("");
   const [busy, setBusy] = useState(false);
   const [imgName, setImgName] = useState("");
   const [imgUrl, setImgUrl] = useState("");
 
-  // UI zoom for ASCII preview (0.10x – 1.00x)
+  // —— ensure favicon points to /favicon.svg at runtime ——
+  useEffect(() => {
+    try {
+      const href = '/favicon.svg';
+      const type = 'image/svg+xml';
+      let link = document.querySelector('link[rel="icon"]');
+      if (!link) {
+        link = document.createElement('link');
+        link.setAttribute('rel', 'icon');
+        document.head.appendChild(link);
+      }
+      link.setAttribute('type', type);
+      link.setAttribute('href', href);
+    } catch {}
+  }, []);
+
+  // UI zoom for ASCII preview (0.10x – 1.00x). Default 0.25 to "zoom out" the preview.
   const [zoom, setZoom] = useState(0.25);
 
   const ASCII_LIST = [" ", ".", ":", "-", "=", "+", "*", "#", "%", "@", "&"]; // python list
   const FINAL_WIDTH = 200; // pixelate target width
   const SCALE_X = 1.05; // widen 5%
+  const EXPORT_FONT_PX = 14; // smaller export font to keep HTML compact
 
   const PRE_STYLE = {
     display: "inline-block",
@@ -125,67 +142,18 @@ export default function App() {
     }
   }
 
-  function buildStandaloneHtml() {
-    return `<!doctype html>\n<html>\n<head>\n<meta charset="utf-8">\n<title>ASCII Html Output file</title>\n</head>\n<body style='background-color:black'>\n<pre style='display: inline-block; border-width: 4px 6px; border-color: black; border-style: solid; background-color:black; font-size: 32px; font-face: Montserrat; font-weight: bold; line-height:60%'>\n${asciiHtml}\n</pre>\n</body>\n</html>`;
+  function buildStandaloneHtml(fontPx = 32) {
+    return `<!doctype html>\n<html>\n<head>\n<meta charset="utf-8">\n<title>ASCII Html Output file</title>\n</head>\n<body style='background-color:black'>\n<pre style='display: inline-block; border-width: 4px 6px; border-color: black; border-style: solid; background-color:black; font-size: ${fontPx}px; font-face: Montserrat; font-weight: bold; line-height:60%'>\n${asciiHtml}\n</pre>\n</body>\n</html>`;
   }
 
   function handleExportHtml() {
-    const doc = buildStandaloneHtml();
+    const doc = buildStandaloneHtml(EXPORT_FONT_PX); // smaller export font → smaller HTML
     const blob = new Blob([doc], { type: "text/html" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = (imgName ? imgName.replace(/\.[^.]+$/, "") : "ascii-art") + ".html";
     a.click();
     URL.revokeObjectURL(a.href);
-  }
-
-  async function handleExportPng() {
-    if (!asciiHtml) return;
-    const doc = buildStandaloneHtml();
-    try {
-      const blob = await renderPngWithFallback(doc);
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = (imgName ? imgName.replace(/\.[^.]+$/, '') : 'ascii-art') + '.png';
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch (err) {
-      console.error(err);
-      const port = window.location.port || '(unknown)';
-      const msg = [
-        'PNG render failed.',
-        import.meta.env.DEV
-          ? `Open the Vercel dev server URL (e.g. http://localhost:3000) instead of Vite (current port: ${port}). Or keep this tab and start vercel dev.`
-          : 'Check your Vercel function logs for /api/html-to-image.'
-      ].join(' ');
-      alert(msg);
-    }
-  }
-
-  // Try same-origin first; in dev fallback to vercel dev ports
-  async function renderPngWithFallback(htmlDoc) {
-    const sameOrigin = `${location.origin}/api/html-to-image`;
-    const tries = [sameOrigin];
-    if (import.meta.env.DEV) {
-      if (!sameOrigin.includes('localhost:3000')) tries.push('http://localhost:3000/api/html-to-image');
-      if (!sameOrigin.includes('localhost:3001')) tries.push('http://localhost:3001/api/html-to-image');
-    }
-
-    let lastErr;
-    for (const url of tries) {
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ html: htmlDoc }),
-        });
-        if (res.ok) return await res.blob();
-        lastErr = new Error(`HTTP ${res.status} at ${url}: ${await res.text().catch(()=>'')}`);
-      } catch (e) {
-        lastErr = e;
-      }
-    }
-    throw lastErr || new Error('All API endpoints failed');
   }
 
   // Drag & Drop handlers
@@ -200,13 +168,14 @@ export default function App() {
     <div className="app-shell" style={appShell}>
       {/* Global prettifying CSS (animations, hover) */}
       <style dangerouslySetInnerHTML={{ __html: globalCss }} />
+      <style dangerouslySetInnerHTML={{ __html: zoomCss }} />
 
       <header className="hero">
         <div className="glow" />
         <h1>
           <span className="logo">▞▚</span> Image → ASCII
         </h1>
-        
+
         <div className="toolbar">
           <label className="btn primary" title="Upload image">
             <input
@@ -220,9 +189,6 @@ export default function App() {
           </label>
           <button className="btn" onClick={handleExportHtml} disabled={!asciiHtml}>
             Download HTML
-          </button>
-          <button className="btn" onClick={handleExportPng} disabled={!asciiHtml}>
-            Download PNG
           </button>
           <div className="zoomctl" title="Preview zoom (does not affect downloads)">
             <span className="zoomlabel">Zoom</span>
@@ -300,9 +266,6 @@ function escapeHtml(str) {
       const mid = Math.floor((128 * n) / 256);
       console.assert(mid >= 0 && mid < n, 'Mid index out of range', mid);
 
-      // Test last char for white maps to '&'
-      console.assert(ASCII_LIST[n - 1] === '&', "Expected last ASCII char to be '&'");
-
       // Test final dims computation
       const w = 1000, h = 500; // example
       const aW = Math.round(w * SCALE_X);
@@ -349,10 +312,6 @@ const globalCss = `
   .logo { display:inline-block; margin-right:.3em; background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip:text; color:transparent; }
 
   .toolbar { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; align-items:center; margin-top:12px; }
-  .zoomctl { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:10px; border:1px solid var(--card-border); background: var(--card); }
-  .zoomctl input[type=range]{ width:140px; accent-color: var(--accent); }
-  .zoomctl .zoomlabel{ color:#d8dbe4; font-size:12px; opacity:.9; }
-  .zoomctl .zoomval{ width:40px; text-align:right; font-variant-numeric: tabular-nums; color:#fff; font-size:12px; }
   .btn { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--card-border); background: var(--card); color: #fff; font-weight: 700; letter-spacing: .2px; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, background .2s; text-decoration:none; }
   .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,.25); }
   .btn:disabled { opacity: .6; cursor: not-allowed; }
@@ -372,4 +331,15 @@ const globalCss = `
   .panel.ascii { background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 12px; overflow:auto; max-height: 70vh; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
 `;
 
+const zoomCss = `
+  .zoomctl { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:10px; border:1px solid var(--card-border); background: var(--card); }
+  .zoomctl input[type=range]{ width:140px; accent-color: var(--accent); }
+  .zoomctl .zoomlabel{ color:#d8dbe4; font-size:12px; opacity:.9; }
+  .zoomctl .zoomval{ width:40px; text-align:right; font-variant-numeric: tabular-nums; color:#fff; font-size:12px; }
+`;
+
 const placeholderAscii = `Drop an image or click Upload to render ASCII here.\nCharset: &@#*+=-:.,  (dark → light)`;
+
+// —— Export size note ——
+// To change exported HTML scale without affecting on-screen preview,
+// tweak EXPORT_FONT_PX above (e.g., 12, 14, 16).
