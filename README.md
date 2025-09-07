@@ -20,20 +20,18 @@ This fork introduces a **mini preview in the left panel** and **removes the file
 
 ## 🚀 Quick Start
 
-# 1. Clone
+### 1. Clone
 git clone <your-repo-url> ascii-studio
 cd ascii-studio
 
-# 2. Install
+### 2. Install
 npm install
 
-# 3. Run dev
+### 3. Run dev
 npm run dev
 
-# 4. Build (optional)
+### 4. Build
 npm run build && npm run preview
-Node: v18+ recommended (tested with v22).
-The app automatically sets the favicon to /favicon.svg at runtime.
 
 ## 🧭 Usage
 Upload:
@@ -59,18 +57,14 @@ Export:
 Click Download HTML to save a portable, standalone rendition.
 
 ## 🎛️ Controls & Presets
-Classic
 
-ruby
-Copy code
+### Classic
 .:-=+*#%@&
-Blocks
 
-Copy code
+### Blocks
  ░▒▓█
-Dense
 
-makefile
-Copy code
+### Dense
 .'`^",:;Il!i><~+_-?][}{1)(|\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$
+
 💡 Tip: Place darker characters first in your charset string for best results.
