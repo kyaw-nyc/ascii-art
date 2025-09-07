@@ -20,7 +20,6 @@ This fork introduces a **mini preview in the left panel** and **removes the file
 
 ## 🚀 Quick Start
 
-```bash
 # 1. Clone
 git clone <your-repo-url> ascii-studio
 cd ascii-studio
@@ -36,7 +35,7 @@ npm run build && npm run preview
 Node: v18+ recommended (tested with v22).
 The app automatically sets the favicon to /favicon.svg at runtime.
 
-🧭 Usage
+## 🧭 Usage
 Upload:
 
 Click Upload,
@@ -59,7 +58,7 @@ Export:
 
 Click Download HTML to save a portable, standalone rendition.
 
-🎛️ Controls & Presets
+## 🎛️ Controls & Presets
 Classic
 
 ruby
